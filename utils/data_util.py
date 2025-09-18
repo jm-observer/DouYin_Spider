@@ -13,6 +13,17 @@ def norm_str(str):
     new_str = re.sub(r"|[\\/:*?\"<>| ]+", "", str).replace('\n', '').replace('\r', '')
     return new_str
 
+def extract_title_before_special_chars(title):
+    """
+    从标题开始到特殊字符为止提取文件名
+    特殊字符包括：，、#、@、_等（不包括数字）
+    """
+    # 匹配从开头到第一个特殊字符之前的内容，保留数字
+    match = re.match(r'^([^，,#@_]+)', title)
+    if match:
+        return match.group(1).strip()
+    return title
+
 def norm_text(text):
     ILLEGAL_CHARACTERS_RE = re.compile(r'[\000-\010]|[\013-\014]|[\016-\037]')
     text = ILLEGAL_CHARACTERS_RE.sub(r'', text)
@@ -173,6 +184,8 @@ def download_work(auth, work_info, path, save_choice):
     work_id = work_info['work_id']
     user_id = work_info['user_id']
     title = work_info['title']
+    # 提取标题中到特殊字符为止的部分
+    title = extract_title_before_special_chars(title)
     title = norm_str(title)[:40]
     nickname = work_info['nickname']
     nickname = norm_str(nickname)[:20]

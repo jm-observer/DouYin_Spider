@@ -16,10 +16,10 @@ def norm_str(str):
 def extract_title_before_special_chars(title):
     """
     从标题开始到特殊字符为止提取文件名
-    特殊字符包括：，、#、@、_等（不包括数字）
+    特殊字符包括：#、@、_等（不包括数字和中文标点）
     """
-    # 匹配从开头到第一个特殊字符之前的内容，保留数字
-    match = re.match(r'^([^，,#@_]+)', title)
+    # 匹配从开头到第一个#、@、_之前的内容，保留数字和中文标点
+    match = re.match(r'^([^#@_]+)', title)
     if match:
         return match.group(1).strip()
     return title
@@ -202,7 +202,7 @@ def download_work(auth, work_info, path, save_choice):
             download_media(save_path, f'image_{img_index}', img_url, 'image')
     elif work_type == '视频' and save_choice in ['media', 'media-video', 'all']:
         download_media(save_path, 'cover', work_info['video_cover'], 'image')
-        DouyinAPI.download_work_media(auth, save_path, 'video', work_info['video_addr'], work_id)
+        DouyinAPI.download_work_media(auth, save_path, title, work_info['video_addr'], work_id)
         # download_media(save_path, 'video', work_info['video_addr'], 'video')
     logger.info(f'作品 {work_info["work_id"]} 下载完成，保存路径: {save_path}')
     return save_path

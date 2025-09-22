@@ -90,6 +90,7 @@ def generate_msToken(randomlength=107):
     length = len(base_str) - 1
     for _ in range(randomlength):
         random_str += base_str[random.randint(0, length)]
+    print(f"生成的msToken: {random_str}")
     return random_str
 
 

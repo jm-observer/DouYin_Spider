@@ -1,6 +1,7 @@
 # coding=utf-8
 import json
 import os
+import sys
 from loguru import logger
 
 from dy_apis.douyin_api import DouyinAPI
@@ -117,31 +118,76 @@ if __name__ == '__main__':
         感谢star和follow
     """
 
+    # 打印 Docker 运行方案
+    logger.info("=" * 80)
+    logger.info("🐳 Docker 运行方案:")
+    logger.info("=" * 80)
+    logger.info("1. 设置环境变量:")
+    logger.info("   $env:DY_COOKIES='your_douyin_cookies_here'")
+    logger.info("   $env:DOUYIN_WORKS='https://www.douyin.com/video/123,https://www.douyin.com/video/456'")
+    logger.info("   $env:DOUYIN_USER_URL='https://www.douyin.com/user/MS4wLjABAAAA...'")
+    logger.info("")
+    logger.info("2. 运行 Docker 容器:")
+    logger.info("   docker run --rm -it \\")
+    logger.info("     -v \"$((Resolve-Path .\\.env).Path):/app/.env\" \\")
+    logger.info("     -v \"$((Resolve-Path .\\main.py).Path):/app/main.py\" \\")
+    logger.info("     -v \"$((Resolve-Path .\\datas).Path):/app/datas\" \\")
+    logger.info("     -e DY_COOKIES=\"$env:DY_COOKIES\" \\")
+    logger.info("     -e DOUYIN_WORKS=\"$env:DOUYIN_WORKS\" \\")
+    logger.info("     -e DOUYIN_USER_URL=\"$env:DOUYIN_USER_URL\" \\")
+    logger.info("     douyin-spider:local")
+    logger.info("=" * 80)
+    logger.info("")
+
     auth, base_path = init()
 
     data_spider = Data_Spider()
     # save_choice: all: 保存所有的信息, media: 保存视频和图片（media-video只下载视频, media-image只下载图片，media都下载）, excel: 保存到excel
     # save_choice 为 excel 或者 all 时，excel_name 不能为空
 
+    # 从环境变量读取配置
+    works_str = os.getenv('DOUYIN_WORKS', '')
+    user_url = os.getenv('DOUYIN_USER_URL', '')
+    
+    # 检查是否至少设置了一个参数
+    if not works_str and not user_url:
+        logger.error("错误：环境变量 DOUYIN_WORKS 和 DOUYIN_USER_URL 都为空")
+        logger.error("请至少设置其中一个环境变量：")
+        logger.error("  - DOUYIN_WORKS: 要爬取的作品链接列表，多个URL用逗号分隔")
+        logger.error("  - DOUYIN_USER_URL: 要爬取的用户主页链接")
+        sys.exit(1)
 
-    # 1 爬取列表的所有作品信息 作品链接 如下所示 注意此url会过期！
-    works = [
-        r'https://www.douyin.com/user/MS4wLjABAAAAv2Jr7Ngl7lQMjp4fw0AxtXkaHOgI_UL8aBJGGDSaU1g?from_tab_name=main&modal_id=7445533736877264178',
-    ]
-    #data_spider.spider_some_work(auth, works, base_path, 'all', 'test')
-    # 2 爬取用户的所有作品信息 用户链接 如下所示 注意此url会过期！
-    user_url = 'https://www.douyin.com/user/MS4wLjABAAAAQANUB1LzRj_ve8o0iD0oIoX92ifglCoG1Y0_XLr1QQyWp0hSGd7CIfdnCXAu-19D?from_tab_name=main'
-    # user_url = 'https://www.douyin.com/user/MS4wLjABAAAAULqT-SrJDT7RqeoxeGg1hB14Ia5UI9Pm66kzKmI1ITD2Fo3bUhqYePBaztkzj7U5?from_tab_name=main&relation=0&vid=7227654252435361061'
-    data_spider.spider_user_all_work(auth, user_url, base_path, 'all')
+    # 1 爬取指定的作品信息
+    if works_str:
+        works = [work.strip() for work in works_str.split(',') if work.strip()]
+        # 处理精选页面链接，提取modal_id并转换为标准作品链接
+        processed_works = []
+        for work in works:
+            if 'jingxuan?modal_id=' in work:
+                # 提取modal_id
+                modal_id = work.split('modal_id=')[1].split('&')[0]
+                # 转换为标准作品链接
+                standard_url = f'https://www.douyin.com/video/{modal_id}'
+                processed_works.append(standard_url)
+                logger.info(f"转换精选链接: {work} -> {standard_url}")
+            else:
+                processed_works.append(work)
+        
+        logger.info(f"开始爬取 {len(processed_works)} 个指定作品")
+        data_spider.spider_some_work(auth, processed_works, base_path, 'all', 'works')
+    
+    # 2 爬取用户的所有作品信息
+    if user_url:
+        logger.info(f"开始爬取用户所有作品: {user_url}")
+        data_spider.spider_user_all_work(auth, user_url, base_path, 'all')
 
-    # 3 搜索指定关键词的作品
-    query = "榴莲"
-    require_num = 20  # 搜索的数量
-    sort_type = '0'  # 排序方式 0 综合排序, 1 最多点赞, 2 最新发布
-    publish_time = '0'  # 发布时间 0 不限, 1 一天内, 7 一周内, 180 半年内
-    filter_duration = ""  # 视频时长 空字符串 不限, 0-1 一分钟内, 1-5 1-5分钟内, 5-10000 5分钟以上
-    search_range = "0"  # 搜索范围 0 不限, 1 最近看过, 2 还未看过, 3 关注的人
-    content_type = "0"  # 内容形式 0 不限, 1 视频, 2 图文
-
-    #data_spider.spider_some_search_work(auth, query, require_num, base_path, 'all', sort_type, publish_time, filter_duration, search_range, content_type)
+    # 3 搜索指定关键词的作品（示例代码，默认不执行）
+    # query = "榴莲"
+    # require_num = 20  # 搜索的数量
+    # sort_type = '0'  # 排序方式 0 综合排序, 1 最多点赞, 2 最新发布
+    # publish_time = '0'  # 发布时间 0 不限, 1 一天内, 7 一周内, 180 半年内
+    # filter_duration = ""  # 视频时长 空字符串 不限, 0-1 一分钟内, 1-5 1-5分钟内, 5-10000 5分钟以上
+    # search_range = "0"  # 搜索范围 0 不限, 1 最近看过, 2 还未看过, 3 关注的人
+    # content_type = "0"  # 内容形式 0 不限, 1 视频, 2 图文
+    # data_spider.spider_some_search_work(auth, query, require_num, base_path, 'all', sort_type, publish_time, filter_duration, search_range, content_type)
 
